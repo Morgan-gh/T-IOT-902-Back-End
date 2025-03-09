@@ -4,7 +4,7 @@ Ce projet est un backend simple en **Rust** utilisant le framework **Actix** pou
 
 ## 🛠️ Installation
 
-### 1. Installer Rust
+### Installer Rust
 Installez Rust avec la commande suivante :
 
 ``` bash
@@ -26,68 +26,7 @@ cargo --version
 
 ---
 
-### 2. Créer un projet Rust
-Créez un nouveau projet avec **Cargo** :
-
-``` bash
-cargo new mon-backend
-cd mon-backend
-```
-
----
-
-### 3. Ajouter les dépendances Actix
-Modifiez le fichier **Cargo.toml** :
-
-``` toml
-[dependencies]
-actix-web = "4.0"
-serde = { version = "1.0", features = ["derive"] }
-serde```json = "1.0"
-```
-
----
-
-### 4. Écrire le code du backend
-Remplacez le contenu de **src/main.rs** par ce code :
-
-``` rust
-use actix```web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize)]
-struct Data {
-    message: String,
-}
-
-#[get("/")]
-async fn index() -> impl Responder {
-    HttpResponse::Ok().body("Hello from Rust backend!")
-}
-
-#[post("/echo")]
-async fn echo(data: web::Json<Data>) -> impl Responder {
-    HttpResponse::Ok().json(Data {
-        message: format!("You sent: {}", data.message),
-    })
-}
-
-#[actix```web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
-        App::new()
-            .service(index)
-            .service(echo)
-    })
-    .bind("127.0.0.1:8080")?
-    .run()
-    .await
-}
-```
-
----
-
-### 5. Lancer le serveur
+### Lancer le serveur
 Exécutez le serveur avec :
 
 ``` bash
@@ -100,7 +39,7 @@ http://127.0.0.1:8080
 
 ---
 
-### 6. Tester l'API
+### Tester l'API
 **GET** sur `/` :
 
 ``` bash
@@ -115,7 +54,7 @@ curl -X POST http://127.0.0.1:8080/echo -H "Content-Type: application/json" -d '
 
 ---
 
-### 7. Créer une route dynamique
+### Ex. Créer une route dynamique
 Exemple d'une route dynamique :
 
 ``` rust
@@ -125,20 +64,6 @@ async fn hello(name: web::Path<String>) -> impl Responder {
 }
 ```
 
----
-
-### 8. Rendre le serveur accessible sur le réseau
-Dans `main.rs` :
-
-``` rust
-HttpServer::new(|| {
-    App::new()
-        .service(index)
-})
-.bind("0.0.0.0:8080")?
-.run()
-.await
-```
 ---
 
 ## ✅ Commandes utiles
