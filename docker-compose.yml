@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # 🚀 Service pour le backend Rust
+  back-iot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENSSL_DIR=/usr/lib/ssl
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  # 📊 Service Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  # 📈 Service Grafana
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  # 🗄️ Service MySQL
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: iot_sensors
+      MYSQL_USER: iot_user
+      MYSQL_PASSWORD: iot_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    networks:
+      - monitoring
+
+# 🔗 Réseau partagé
+networks:
+  monitoring:
+    driver: bridge
+
+# 📂 Volumes persistants
+volumes:
+  grafana_data:
+  mysql_data:

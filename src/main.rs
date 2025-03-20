@@ -1,51 +1,62 @@
-use actix_multipart::Multipart;
-use actix_web::{post, App, HttpResponse, HttpServer, Responder};
-use futures_util::stream::StreamExt;
+mod routes;
+
+use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
+use lazy_static::lazy_static;
+use mysql_async::Pool;
+use prometheus::{Encoder, TextEncoder, register_counter, register_histogram, Counter, Histogram};
+
+lazy_static! {
+    static ref REQUEST_COUNTER: Counter = register_counter!(
+        "http_requests_total",
+        "Nombre total de requêtes HTTP"
+    ).unwrap();
+
+    static ref REQUEST_DURATION: Histogram = register_histogram!(
+        "http_request_duration_seconds",
+        "Durée des requêtes HTTP"
+    ).unwrap();
+}
 
 #[derive(Serialize, Deserialize)]
 struct MessageData {
     message: String,
 }
 
-#[post("/echo")]
-async fn echo(mut payload: Multipart) -> impl Responder {
-    let mut message = String::new();
+#[get("/metrics")]
+async fn metrics() -> impl Responder {
+    let encoder = TextEncoder::new();
+    let mut buffer = Vec::new();
+    let metric_families = prometheus::gather(); // ✅ Appel de Prometheus corrigé
+    encoder.encode(&metric_families, &mut buffer).unwrap();
 
-    while let Some(item) = payload.next().await {
-        let mut field = match item {
-            Ok(field) => field,
-            Err(_) => return HttpResponse::BadRequest().body("Invalid form data"),
-        };
+    HttpResponse::Ok()
+        .content_type("text/plain; charset=utf-8")
+        .body(String::from_utf8(buffer).unwrap())
+}
 
-        // Lire le contenu du champ
-        while let Some(chunk) = field.next().await {
-            let data = match chunk {
-                Ok(data) => data,
-                Err(_) => return HttpResponse::BadRequest().body("Error reading data"),
-            };
+#[get("/echo")]
+async fn echo() -> impl Responder {
+    REQUEST_COUNTER.inc(); // ✅ Correctement reconnu
+    let timer = REQUEST_DURATION.start_timer(); // ✅ Correctement reconnu
 
-            if field.name() == "message" {
-                message.push_str(&String::from_utf8_lossy(&data));
-            }
-        }
-    }
+    let response = HttpResponse::Ok().body("Echo!");
 
-    if message.is_empty() {
-        return HttpResponse::BadRequest().body("Missing 'message' field");
-    }
-
-    // Renvoie le message reçu en réponse JSON
-    HttpResponse::Ok().json(MessageData { message })
+    timer.observe_duration();
+    response
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    // Connexion à la base de données
+    let pool = Pool::new("mysql://iot_user:iot_password@127.0.0.1/iot_sensors");
+
+    HttpServer::new(move || {
         App::new()
-            .service(echo)
+            .app_data(web::Data::new(pool.clone()))
+            .configure(routes::config) // 👈 Appel automatique des routes
     })
-    .bind("127.0.0.1:8080")?
+    .bind("0.0.0.0:8080")?
     .run()
     .await
 }
