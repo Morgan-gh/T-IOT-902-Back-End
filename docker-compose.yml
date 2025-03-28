@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # Backend Rust
+  rust-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/app
+      - /app/target # Exclure le dossier target pour éviter les conflits
+    environment:
+      - RUST_LOG=info
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=my-super-secret-token
+      - INFLUXDB_ORG=iot-org
+      - INFLUXDB_BUCKET=iot-data
+    depends_on:
+      - influxdb
+
+  # InfluxDB pour le stockage des données temporelles
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - ./influxdb/config:/etc/influxdb2
+    #environment:
+      #- DOCKER_INFLUXDB_INIT_MODE=setup
+      #- DOCKER_INFLUXDB_INIT_USERNAME=admin
+      #- DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
+      #- DOCKER_INFLUXDB_INIT_ORG=iot-org
+      #- DOCKER_INFLUXDB_INIT_BUCKET=iot-data
+      #- DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-token
+      #- DOCKER_INFLUXDB_INIT_RETENTION=30d
+
+  # Grafana pour la visualisation
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - influxdb
+
+volumes:
+  influxdb-data:
+  grafana-data:
