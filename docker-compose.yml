@@ -1,68 +1,56 @@
 version: '3.8'
 
 services:
-  # 🚀 Service pour le backend Rust
-  back-iot:
+  # Backend Rust
+  rust-backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     ports:
       - "8080:8080"
-    environment:
-      - OPENSSL_DIR=/usr/lib/ssl
-    networks:
-      - monitoring
-    restart: unless-stopped
-
-  # 📊 Service Prometheus
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    networks:
-      - monitoring
-    restart: unless-stopped
+      - ./backend:/app
+      - /app/target # Exclure le dossier target pour éviter les conflits
+    environment:
+      - RUST_LOG=info
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=my-super-secret-token
+      - INFLUXDB_ORG=iot-org
+      - INFLUXDB_BUCKET=iot-data
+    depends_on:
+      - influxdb
 
-  # 📈 Service Grafana
+  # InfluxDB pour le stockage des données temporelles
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - ./influxdb/config:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
+      - DOCKER_INFLUXDB_INIT_ORG=iot-org
+      - DOCKER_INFLUXDB_INIT_BUCKET=iot-data
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-token
+      - DOCKER_INFLUXDB_INIT_RETENTION=30d
+
+  # Grafana pour la visualisation
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana
     ports:
       - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-    networks:
-      - monitoring
-    restart: unless-stopped
+    depends_on:
+      - influxdb
 
-  # 🗄️ Service MySQL
-  mysql:
-    image: mysql:8.0
-    container_name: mysql
-    restart: always
-    ports:
-      - "3306:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: iot_sensors
-      MYSQL_USER: iot_user
-      MYSQL_PASSWORD: iot_password
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./mysql-init:/docker-entrypoint-initdb.d
-    networks:
-      - monitoring
-
-# 🔗 Réseau partagé
-networks:
-  monitoring:
-    driver: bridge
-
-# 📂 Volumes persistants
 volumes:
-  grafana_data:
-  mysql_data:
+  influxdb-data:
+  grafana-data:

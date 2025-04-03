@@ -1,86 +1,174 @@
-# Backend en Rust avec Actix
+# T-IOT-902 - SenSorSensei
 
-Ce projet est un backend simple en **Rust** utilisant le framework **Actix** pour la gestion des routes et des requêtes HTTP.
+## 📋 Vue d'ensemble
 
-## 🛠️ Installation
+Ce projet implémente un système IoT complet utilisant des modules LoRa pour la collecte de données à distance, un backend Rust pour le traitement, InfluxDB pour le stockage des séries temporelles et Grafana pour la visualisation et le monitoring.
 
-### Installer Rust
-Installez Rust avec la commande suivante :
+### Caractéristiques principales
 
-``` bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
+- 📡 Communication sans fil longue portée via protocole LoRa
+- 🔄 Backend haute performance en Rust
+- 📊 Stockage optimisé des données temporelles avec InfluxDB
+- 📈 Tableaux de bord personnalisables avec Grafana
+- 🐳 Déploiement simplifié via Docker Compose
 
-Ajoutez Rust à votre PATH :
+## 🏗️ Architecture du système
 
-``` bash
-source $HOME/.cargo/env
-```
+Le système se compose des éléments suivants :
 
-Vérifiez l'installation :
+1. **Modules capteurs LoRa (matériel)** :
+   - Collectent les données environnementales (température, humidité, etc.)
+   - Transmettent les données via radio LoRa
+   - Fonctionnent sur batterie avec optimisation de la consommation énergétique
 
-``` bash
-rustc --version
-cargo --version
-```
+2. **Passerelle LoRa (matériel)** :
+   - Reçoit les signaux radio des capteurs
+   - Transmet les données au backend via HTTP/REST
+   - Assure la conversion entre protocole LoRa et réseau IP
 
----
+3. **Backend Rust** :
+   - API REST haute performance pour l'ingestion des données
+   - Validation et traitement des données
+   - Transmission vers InfluxDB pour stockage
 
-### Lancer le serveur
-Exécutez le serveur avec :
+4. **InfluxDB** :
+   - Base de données optimisée pour les séries temporelles
+   - Stockage efficace des données de capteurs
+   - Rétention configurable des données
 
-``` bash
-cargo run
-```
+5. **Grafana** :
+   - Visualisation interactive des données
+   - Tableaux de bord personnalisables
+   - Système d'alertes configurable
 
-Le serveur sera accessible à l'adresse suivante :
-http://127.0.0.1:8080
+## 🔧 Prérequis
 
+- Docker et Docker Compose
+- Modules LoRa matériels configurés (passerelle et capteurs)
+- Connexion réseau entre la passerelle LoRa et le serveur
+- Au moins 2GB de RAM sur le serveur
+- Espace disque recommandé : 10GB minimum
 
----
+## ⚙️ Installation
 
-### Tester l'API
-**GET** sur `/` :
+1. Clonez ce dépôt :
+   ```bash
+   git clone https://github.com/votre-utilisateur/lora-iot-system.git
+   cd lora-iot-system
+   ```
 
-``` bash
-curl http://127.0.0.1:8080/
-```
+## 🚀 Lancement
 
-**POST** sur `/echo` :
+1. Démarrez les services avec Docker Compose :
+   ```bash
+   docker-compose up -d
+   ```
 
-``` bash
-curl -X POST http://127.0.0.1:8080/echo -H "Content-Type: application/json" -d '{"message": "Salut"}'
-```
+2. Vérifiez que tous les services sont en cours d'exécution :
+   ```bash
+   docker-compose ps
+   ```
 
----
+3. Initialisez la base de données InfluxDB (première exécution uniquement) :
+   ```bash
+   docker-compose exec influxdb influx setup \
+     --username admin \
+     --password adminpassword \
+     --org iot-org \
+     --bucket iot-data \
+     --retention 30d \
+     --force
+   ```
 
-### Ex. Créer une route dynamique
-Exemple d'une route dynamique :
+## ⚙️ Configuration
 
-``` rust
-#[get("/hello/{name}")]
-async fn hello(name: web::Path<String>) -> impl Responder {
-    HttpResponse::Ok().body(format!("Hello, {}!", name))
+### Configuration du backend Rust
+
+Le fichier de configuration principal du backend se trouve dans `backend/config.toml`.
+
+Principales options de configuration :
+- `server.port` : Port d'écoute de l'API (par défaut : 8080)
+- `influxdb.url` : URL de connexion à InfluxDB
+- `influxdb.token` : Token d'authentification pour InfluxDB
+- `influxdb.org` : Organisation InfluxDB
+- `influxdb.bucket` : Bucket de stockage des données
+
+### API REST du backend
+
+Le backend expose les endpoints suivants :
+
+- **POST /api/sensor** : Endpoint principal pour recevoir les données des capteurs
+- **GET /health** : Vérification de l'état du service
+- **GET /metrics** : Endpoint Prometheus pour la surveillance du backend (optionnel)
+
+### Format des données des capteurs
+
+Les données envoyées à l'API doivent être au format JSON avec la structure minimale suivante :
+
+```json
+{
+  "device_id": "lora-sensor-01",
+  "timestamp": "2025-04-03T14:30:00Z",  // Optionnel, UTC ISO8601
+  "measurements": {
+    "temperature": 25.5,
+    "humidity": 65.2,
+    "pressure": 1013.2,  // Optionnel
+    "battery": 3.8       // Optionnel
+  }
 }
 ```
 
----
+### Configuration de la passerelle LoRa
 
-## ✅ Commandes utiles
-| Commande | Description |
-|----------|-------------|
-| ``` cargo new mon-backend ``` | Crée un nouveau projet |
-| ``` cargo run ``` | Lance le serveur |
-| ``` cargo check ``` | Vérifie le code sans le compiler |
-| ``` cargo build --release ``` | Compile le code pour la production |
-| ``` cargo clean ``` | Nettoie les fichiers compilés |
+Configurez votre passerelle LoRa matérielle pour qu'elle envoie les données à l'API du backend :
 
----
+- URL : `http://<adresse-ip-du-serveur>:8080/api/sensor`
+- Méthode : POST
+- Content-Type : application/json
+- Authentification : Basic ou Bearer Token (si configuré)
 
-## 🎯 Ce que vous obtenez :
-✅ Serveur REST fonctionnel en Rust  
-✅ Gestion des routes (GET, POST)  
-✅ Sérialisation/Désérialisation JSON  
-✅ Serveur rapide et sécurisé  
 
----
+## 🖥️ Accès aux interfaces
+
+- **Backend Rust** : http://localhost:8080
+  - Documentation API : http://localhost:8080/docs (si activée)
+
+- **InfluxDB** : http://localhost:8086
+  - Identifiants par défaut : admin/adminpassword
+  - Organisation : iot-org
+  - Bucket : iot-data
+
+- **Grafana** : http://localhost:3000
+  - Identifiants par défaut : admin/admin
+  - Tableau de bord préconfiguré : "IoT Sensors Overview"
+
+## 🧪 Test du système
+
+### Test sans matériel LoRa
+
+Pour tester le backend sans utiliser de passerelle LoRa matérielle :
+
+```bash
+curl -X POST http://localhost:8080/api/sensor \
+  -H "Content-Type: application/json" \
+  -d '{
+    "device_id": "test-sensor",
+    "measurements": {
+      "temperature": 25.5,
+      "humidity": 65.2,
+      "battery": 3.8
+    }
+  }'
+```
+
+## 🔍 Surveillance et maintenance
+
+### Vérification des logs
+
+Pour voir les logs d'un service spécifique :
+```bash
+docker-compose logs -f <service>
+```
+
+Où `<service>` peut être `rust-backend`, `influxdb` ou `grafana`.
+```
