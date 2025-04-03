@@ -2,14 +2,21 @@ FROM rust:latest
 
 WORKDIR /app
 
-# Copier les fichiers source
-COPY . .
+# Installer les dépendances
+RUN apt-get update && apt-get install -y \
+    libssl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
-# Compiler l'application
+# Copier les fichiers du projet
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+
+# Compiler le projet
 RUN cargo build --release
 
 # Exposer le port
 EXPOSE 8080
 
-# Lancer l'application
+# Démarrer l'application
 CMD ["./target/release/backend"]
