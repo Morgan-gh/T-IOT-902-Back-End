@@ -1,7 +1,0 @@
-global:
-  scrape_interval: 5s # Scraper toutes les 5 secondes
-
-scrape_configs:
-  - job_name: 'rust-backend'
-    static_configs:
-      - targets: ['back-iot:8080']
