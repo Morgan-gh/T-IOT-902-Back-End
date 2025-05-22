@@ -12,16 +12,6 @@ struct SoundData {
     sound_level: f32,
 }
 
-#[get("/sound")]
-async fn get_sound_data(_client: web::Data<Client>) -> impl Responder {
-    // Pour le moment, juste retourner une réponse simple
-    HttpResponse::Ok().json(json!({
-        "status": "success",
-        "message": "Cette API retournera bientôt les données de son depuis InfluxDB",
-        "data": []
-    }))
-}
-
 #[post("/sound")]
 async fn insert_sound_data(
     _client: web::Data<Client>,

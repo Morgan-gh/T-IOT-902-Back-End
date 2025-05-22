@@ -12,16 +12,6 @@ struct DustData {
     dust_concentration: f32,
 }
 
-#[get("/dust")]
-async fn get_dust_data(_client: web::Data<Client>) -> impl Responder {
-    // Pour le moment, juste retourner une réponse simple
-    HttpResponse::Ok().json(json!({
-        "status": "success",
-        "message": "Cette API retournera bientôt les données de poussière depuis InfluxDB",
-        "data": []
-    }))
-}
-
 #[post("/dust")]
 async fn insert_dust(
     _client: web::Data<Client>,

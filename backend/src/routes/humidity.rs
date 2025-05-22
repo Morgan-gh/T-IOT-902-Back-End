@@ -13,16 +13,6 @@ struct DhtData {
     humidity: f32,
 }
 
-#[get("/humidity")]
-async fn get_dht_data(_client: web::Data<Client>) -> impl Responder {
-    // Pour le moment, juste retourner une réponse simple
-    HttpResponse::Ok().json(json!({
-        "status": "success",
-        "message": "Cette API retournera bientôt les données de température et humidité depuis InfluxDB",
-        "data": []
-    }))
-}
-
 #[post("/humidity")]
 async fn insert_dht_data(
     _client: web::Data<Client>,
