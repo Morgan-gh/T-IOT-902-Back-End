@@ -1,11 +1,9 @@
 mod routes;
 mod influxdb_client;
-mod data_generator; 
 
 use actix_web::{web, App, HttpServer};
 use influxdb2::Client;
 use crate::influxdb_client::CustomInfluxClient;
-use crate::data_generator::start_data_generator;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -32,10 +30,6 @@ async fn main() -> std::io::Result<()> {
         influxdb_org.clone(),
         influxdb_bucket.clone()
     );
-
-    // FAKE DATA GENERATOR
-    let data_gen_client = custom_client.clone();
-    start_data_generator(data_gen_client).await;
     
     // Configurer le niveau de log
     std::env::set_var("RUST_LOG", "info");

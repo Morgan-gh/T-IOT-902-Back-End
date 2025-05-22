@@ -2,11 +2,11 @@
 
 ## 📋 Vue d'ensemble
 
-Ce projet implémente un système IoT complet utilisant des modules LoRa pour la collecte de données à distance, un backend Rust pour le traitement, InfluxDB pour le stockage des séries temporelles et Grafana pour la visualisation et le monitoring.
+SenSorSensei est un système IoT complet qui collecte et analyse les données environnementales via des capteurs LoRa. Le système utilise LoRaWAN pour la transmission des données, un backend Rust pour le traitement, et Grafana pour la visualisation.
 
 ### Caractéristiques principales
 
-- 📡 Communication sans fil longue portée via protocole LoRa
+- 📡 Communication LoRaWAN pour une portée étendue
 - 🔄 Backend haute performance en Rust
 - 📊 Stockage optimisé des données temporelles avec InfluxDB
 - 📈 Tableaux de bord personnalisables avec Grafana
@@ -16,30 +16,44 @@ Ce projet implémente un système IoT complet utilisant des modules LoRa pour la
 
 Le système se compose des éléments suivants :
 
-1. **Modules capteurs LoRa (matériel)** :
-   - Collectent les données environnementales (température, humidité, etc.)
-   - Transmettent les données via radio LoRa
-   - Fonctionnent sur batterie avec optimisation de la consommation énergétique
+1. **Capteurs et Module LoRa** :
+   - Trois capteurs connectés à un module LoRa :
+     - Capteur de température et d'humidité
+     - Capteur de qualité de l'air (poussière)
+     - Capteur de niveau sonore
+   - Le module LoRa transmet les données via le protocole LoRaWAN
 
-2. **Passerelle LoRa (matériel)** :
-   - Reçoit les signaux radio des capteurs
-   - Transmet les données au backend via HTTP/REST
-   - Assure la conversion entre protocole LoRa et réseau IP
+2. **Passerelle ESP32** :
+   - Reçoit les données LoRaWAN des capteurs
+   - Convertit les données en requêtes HTTP
+   - Transmet les données au backend Rust
 
 3. **Backend Rust** :
-   - API REST haute performance pour l'ingestion des données
+   - API REST haute performance
+   - Endpoints dédiés pour chaque type de capteur :
+     - `/api/sound` pour les données sonores
+     - `/api/humidity` pour l'humidité et la température
+     - `/api/dust` pour la qualité de l'air
    - Validation et traitement des données
-   - Transmission vers InfluxDB pour stockage
+   - Transmission vers InfluxDB
 
 4. **InfluxDB** :
    - Base de données optimisée pour les séries temporelles
    - Stockage efficace des données de capteurs
    - Rétention configurable des données
+   - Source de données pour Grafana
 
 5. **Grafana** :
    - Visualisation interactive des données
    - Tableaux de bord personnalisables
    - Système d'alertes configurable
+   - Connexion directe à InfluxDB pour les données en temps réel
+
+### Flux de données
+
+```
+[Capteurs] → [Module LoRa] → [LoRaWAN] → [ESP32 Gateway] → [HTTP] → [Backend Rust] → [InfluxDB] → [Grafana]
+```
 
 ## 🔧 Prérequis
 
@@ -49,27 +63,24 @@ Le système se compose des éléments suivants :
 - Au moins 2GB de RAM sur le serveur
 - Espace disque recommandé : 10GB minimum
 
-## ⚙️ Installation
+## 🚀 Installation et déploiement
 
 1. Clonez ce dépôt :
    ```bash
-   git clone https://github.com/votre-utilisateur/lora-iot-system.git
-   cd lora-iot-system
+   git clone https://github.com/Morgan-gh/T-IOT-902-Back-End.git
    ```
 
-## 🚀 Lancement
-
-1. Démarrez les services avec Docker Compose :
+2. Démarrez les services avec Docker Compose :
    ```bash
    docker-compose up -d
    ```
 
-2. Vérifiez que tous les services sont en cours d'exécution :
+3. Vérifiez que tous les services sont en cours d'exécution :
    ```bash
    docker-compose ps
    ```
 
-3. Initialisez la base de données InfluxDB (première exécution uniquement) :
+4. Initialisez la base de données InfluxDB (première exécution uniquement) :
    ```bash
    docker-compose exec influxdb influx setup \
      --username admin \
@@ -84,82 +95,42 @@ Le système se compose des éléments suivants :
 
 ### Configuration du backend Rust
 
-Le fichier de configuration principal du backend se trouve dans `backend/config.toml`.
+Le backend est configuré via des variables d'environnement dans le `docker-compose.yml` :
 
-Principales options de configuration :
-- `server.port` : Port d'écoute de l'API (par défaut : 8080)
-- `influxdb.url` : URL de connexion à InfluxDB
-- `influxdb.token` : Token d'authentification pour InfluxDB
-- `influxdb.org` : Organisation InfluxDB
-- `influxdb.bucket` : Bucket de stockage des données
+- `INFLUXDB_URL` : URL de connexion à InfluxDB
+- `INFLUXDB_TOKEN` : Token d'authentification
+- `INFLUXDB_ORG` : Organisation InfluxDB
+- `INFLUXDB_BUCKET` : Bucket de stockage
 
 ### API REST du backend
 
 Le backend expose les endpoints suivants :
 
-- **POST /api/sensor** : Endpoint principal pour recevoir les données des capteurs
-- **GET /health** : Vérification de l'état du service
-- **GET /metrics** : Endpoint Prometheus pour la surveillance du backend (optionnel)
+- **POST /api/sound** : Données des capteurs sonores
+- **POST /api/humidity** : Données des capteurs d'humidité
+- **POST /api/dust** : Données des capteurs de poussière
 
-### Format des données des capteurs
+### Format des données (A revoir)
 
-Les données envoyées à l'API doivent être au format JSON avec la structure minimale suivante :
+Les données doivent être envoyées au format JSON. Exemple pour un capteur d'humidité :
 
 ```json
 {
-  "device_id": "lora-sensor-01",
-  "timestamp": "2025-04-03T14:30:00Z",  // Optionnel, UTC ISO8601
-  "measurements": {
-    "temperature": 25.5,
-    "humidity": 65.2,
-    "pressure": 1013.2,  // Optionnel
-    "battery": 3.8       // Optionnel
-  }
+  "device_id": "lora-humidity-01",
+  "timestamp": "2024-03-20T14:30:00Z",
+  "humidity": 65.2,
+  "temperature": 25.5,
+  "battery": 3.8
 }
 ```
-
-### Configuration de la passerelle LoRa
-
-Configurez votre passerelle LoRa matérielle pour qu'elle envoie les données à l'API du backend :
-
-- URL : `http://<adresse-ip-du-serveur>:8080/api/sensor`
-- Méthode : POST
-- Content-Type : application/json
-- Authentification : Basic ou Bearer Token (si configuré)
-
 
 ## 🖥️ Accès aux interfaces
 
 - **Backend Rust** : http://localhost:8080
-  - Documentation API : http://localhost:8080/docs (si activée)
-
 - **InfluxDB** : http://localhost:8086
   - Identifiants par défaut : admin/adminpassword
-  - Organisation : iot-org
-  - Bucket : iot-data
-
 - **Grafana** : http://localhost:3000
   - Identifiants par défaut : admin/admin
-  - Tableau de bord préconfiguré : "IoT Sensors Overview"
-
-## 🧪 Test du système
-
-### Test sans matériel LoRa
-
-Pour tester le backend sans utiliser de passerelle LoRa matérielle :
-
-```bash
-curl -X POST http://localhost:8080/api/sensor \
-  -H "Content-Type: application/json" \
-  -d '{
-    "device_id": "test-sensor",
-    "measurements": {
-      "temperature": 25.5,
-      "humidity": 65.2,
-      "battery": 3.8
-    }
-  }'
-```
 
 ## 🔍 Surveillance et maintenance
 
@@ -171,4 +142,24 @@ docker-compose logs -f <service>
 ```
 
 Où `<service>` peut être `rust-backend`, `influxdb` ou `grafana`.
-```
+
+### Sauvegarde des données
+
+Les données sont stockées dans des volumes Docker :
+- `influxdb-data` : Données InfluxDB
+- `grafana-data` : Configuration et tableaux de bord Grafana
+
+## 🤝 Contribution
+
+Les contributions sont les bienvenues ! N'hésitez pas à :
+1. Fork le projet
+2. Créer une branche pour votre fonctionnalité
+3. Commiter vos changements
+4. Pousser vers la branche
+5. Ouvrir une Pull Request
+
+## 📚 Documentation
+
+### Documentation IOT
+Pour plus de détails sur la configuration et l'implémentation des capteurs et de la passerelle LoRa, consultez notre documentation complète sur Notion :
+[Documentation IOT SenSorSensei](https://www.notion.so/1aeceb35280c806db5b0cefe2d1deb24?v=1aeceb35280c81d0a6e6000cff38b90a)
