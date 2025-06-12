@@ -2,13 +2,14 @@
 
 ## 📋 Vue d'ensemble
 
-SenSorSensei est un système IoT complet qui collecte et analyse les données environnementales via des capteurs LoRa. Le système utilise LoRaWAN pour la transmission des données, un backend Rust pour le traitement, et Grafana pour la visualisation.
+SenSorSensei est un système IoT complet qui collecte et analyse les données environnementales via des capteurs LoRa. Le système utilise LoRaWAN pour la transmission des données, un backend Rust pour le traitement, InfluxDB pour le stockage et Sensor Community pour partager les données publiquement.
 
 ### Caractéristiques principales
 
 - 📡 Communication LoRaWAN pour une portée étendue
 - 🔄 Backend haute performance en Rust
 - 📊 Stockage optimisé des données temporelles avec InfluxDB
+- 🌍 Partage des données avec Sensor Community
 - 📈 Tableaux de bord personnalisables avec Grafana
 - 🐳 Déploiement simplifié via Docker Compose
 
@@ -18,24 +19,21 @@ Le système se compose des éléments suivants :
 
 1. **Capteurs et Module LoRa** :
    - Trois capteurs connectés à un module LoRa :
-     - Capteur de température et d'humidité
-     - Capteur de qualité de l'air (poussière)
-     - Capteur de niveau sonore
+     - Capteur de température et d'humidité (DHT11/DHT22)
+     - Capteur de qualité de l'air/poussière (SDS011/PMS5003)
+     - Capteur de niveau sonore (INMP441)
    - Le module LoRa transmet les données via le protocole LoRaWAN
 
-2. **Passerelle ESP32** :
+2. **Passerelle LoRa** :
    - Reçoit les données LoRaWAN des capteurs
    - Convertit les données en requêtes HTTP
    - Transmet les données au backend Rust
 
 3. **Backend Rust** :
    - API REST haute performance
-   - Endpoints dédiés pour chaque type de capteur :
-     - `/api/sound` pour les données sonores
-     - `/api/humidity` pour l'humidité et la température
-     - `/api/dust` pour la qualité de l'air
+   - Endpoints dédiés pour chaque type de capteur
    - Validation et traitement des données
-   - Transmission vers InfluxDB
+   - Double transmission vers InfluxDB et Sensor Community
 
 4. **InfluxDB** :
    - Base de données optimisée pour les séries temporelles
@@ -43,7 +41,12 @@ Le système se compose des éléments suivants :
    - Rétention configurable des données
    - Source de données pour Grafana
 
-5. **Grafana** :
+5. **Sensor Community** :
+   - Partage des données environnementales avec la communauté
+   - Contribution aux cartes de pollution publiques
+   - API ouverte pour accès aux données
+
+6. **Grafana** :
    - Visualisation interactive des données
    - Tableaux de bord personnalisables
    - Système d'alertes configurable
@@ -52,7 +55,7 @@ Le système se compose des éléments suivants :
 ### Flux de données
 
 ```
-[Capteurs] → [Module LoRa] → [LoRaWAN] → [ESP32 Gateway] → [HTTP] → [Backend Rust] → [InfluxDB] → [Grafana]
+[Capteurs] → [Module LoRa] → [LoRaWAN] → [Gateway] → [HTTP] → [Backend Rust] → [InfluxDB + Sensor Community] → [Grafana]
 ```
 
 ## 🔧 Prérequis
@@ -62,6 +65,7 @@ Le système se compose des éléments suivants :
 - Connexion réseau entre la passerelle LoRa et le serveur
 - Au moins 2GB de RAM sur le serveur
 - Espace disque recommandé : 10GB minimum
+- Compte Sensor Community pour le partage de données
 
 ## 🚀 Installation et déploiement
 
@@ -70,59 +74,179 @@ Le système se compose des éléments suivants :
    git clone https://github.com/Morgan-gh/T-IOT-902-Back-End.git
    ```
 
-2. Démarrez les services avec Docker Compose :
+2. Configurez les variables d'environnement :
+   ```bash
+   cp .env.example .env
+   # Éditez le fichier .env avec vos configurations
+   ```
+
+3. Démarrez les services avec Docker Compose :
    ```bash
    docker-compose up -d
    ```
 
-3. Vérifiez que tous les services sont en cours d'exécution :
+4. Vérifiez que tous les services sont en cours d'exécution :
    ```bash
    docker-compose ps
    ```
 
-4. Initialisez la base de données InfluxDB (première exécution uniquement) :
-   ```bash
-   docker-compose exec influxdb influx setup \
-     --username admin \
-     --password adminpassword \
-     --org iot-org \
-     --bucket iot-data \
-     --retention 30d \
-     --force
-   ```
-
 ## ⚙️ Configuration
+
+### Variables d'environnement
+
+Configurez le fichier `.env` avec les valeurs suivantes :
+
+```env
+# Configuration InfluxDB
+INFLUXDB_URL=http://localhost:8086
+INFLUXDB_TOKEN=
+INFLUXDB_ORG=
+INFLUXDB_BUCKET=
+
+# Configuration Sensor Community
+SENSOR_COMMUNITY_ID=
+SENSOR_COMMUNITY_PIN=
+
+# Configuration serveur
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8080
+RUST_LOG=info
+```
 
 ### Configuration du backend Rust
 
-Le backend est configuré via des variables d'environnement dans le `docker-compose.yml` :
+Le backend expose une API REST pour recevoir les données des capteurs LoRa et les transmet automatiquement vers InfluxDB et Sensor Community.
 
-- `INFLUXDB_URL` : URL de connexion à InfluxDB
-- `INFLUXDB_TOKEN` : Token d'authentification
-- `INFLUXDB_ORG` : Organisation InfluxDB
-- `INFLUXDB_BUCKET` : Bucket de stockage
+## 📡 API REST du backend
 
-### API REST du backend
+### Informations générales
 
-Le backend expose les endpoints suivants :
+- **URL de base** : `http://localhost:8080`
+- **Format de données** : `multipart/form-data`
+- **Méthode HTTP** : `POST`
+- **Réponse** : JSON
 
-- **POST /api/sound** : Données des capteurs sonores
-- **POST /api/humidity** : Données des capteurs d'humidité
-- **POST /api/dust** : Données des capteurs de poussière
+### Endpoints disponibles
 
-### Format des données (A revoir)
+#### 🔊 Capteur de Son - `/sound`
 
-Les données doivent être envoyées au format JSON. Exemple pour un capteur d'humidité :
+**URL** : `POST /sound`
 
+| Paramètre | Type | Plage | Description |
+|-----------|------|-------|-------------|
+| `sound_level` | float | -60.0 à 120.0 | Niveau sonore en décibels (dB) |
+
+**Réponse de succès** :
 ```json
 {
-  "device_id": "lora-humidity-01",
-  "timestamp": "2024-03-20T14:30:00Z",
-  "humidity": 65.2,
-  "temperature": 25.5,
-  "battery": 3.8
+  "status": "success",
+  "message": "Données stockées dans InfluxDB et envoyées à Sensor Community",
+  "data": {
+    "sound_level": 65.2,
+    "unit": "dB",
+    "sensor_type": "INMP441",
+    "location": "marseille"
+  },
+  "delivery_status": {
+    "influxdb": true,
+    "sensor_community": true
+  },
+  "timestamp": "2025-06-12T14:30:45Z"
 }
 ```
+
+#### 🌡️ Capteur Température/Humidité - `/humidity`
+
+**URL** : `POST /humidity`
+
+| Paramètre | Type | Plage | Description |
+|-----------|------|-------|-------------|
+| `temperature` | float | -40.0 à 80.0 | Température en degrés Celsius (°C) |
+| `humidity` | float | 0.0 à 100.0 | Humidité relative en pourcentage (%) |
+
+**Réponse de succès** :
+```json
+{
+  "status": "success",
+  "message": "Données stockées dans InfluxDB et envoyées à Sensor Community",
+  "data": {
+    "temperature": {
+      "value": 23.5,
+      "unit": "°C"
+    },
+    "humidity": {
+      "value": 68.2,
+      "unit": "%"
+    },
+    "sensor_type": "DHT11",
+    "location": "marseille"
+  },
+  "delivery_status": {
+    "influxdb": true,
+    "sensor_community": true
+  },
+  "timestamp": "2025-06-12T14:30:45Z"
+}
+```
+
+#### 💨 Capteur de Poussière - `/dust`
+
+**URL** : `POST /dust`
+
+| Paramètre | Type | Plage | Requis | Description |
+|-----------|------|-------|--------|-------------|
+| `dust_concentration` | float | 0.0 à 1000.0 | ✅ Oui | Concentration générale de poussière en µg/m³ |
+| `pm25` | float | 0.0 à 500.0 | ❌ Non | Particules PM2.5 en µg/m³ (optionnel) |
+| `pm10` | float | 0.0 à 500.0 | ❌ Non | Particules PM10 en µg/m³ (optionnel) |
+
+> **Note** : Si `pm25` et `pm10` ne sont pas fournis, ils seront estimés automatiquement à partir de `dust_concentration`.
+
+**Réponse de succès** :
+```json
+{
+  "status": "success",
+  "message": "Données stockées dans InfluxDB et envoyées à Sensor Community",
+  "data": {
+    "dust_concentration": {
+      "value": 45.2,
+      "unit": "µg/m³"
+    },
+    "pm25": {
+      "value": 32.1,
+      "unit": "µg/m³",
+      "estimated": false
+    },
+    "pm10": {
+      "value": 45.2,
+      "unit": "µg/m³",
+      "estimated": false
+    },
+    "sensor_type": "particulate_matter",
+    "location": "marseille"
+  },
+  "delivery_status": {
+    "influxdb": true,
+    "sensor_community": true
+  },
+  "air_quality_index": {
+    "pm25_category": "Moderate",
+    "pm10_category": "Good"
+  },
+  "timestamp": "2025-06-12T14:30:45Z"
+}
+```
+
+### Gestion des erreurs
+
+#### Codes de statut :
+- **200 OK** : Données traitées avec succès
+- **400 Bad Request** : Données invalides ou manquantes
+- **500 Internal Server Error** : Erreur serveur
+
+#### Types de statut dans la réponse :
+- **`"success"`** : Données envoyées avec succès vers InfluxDB ET Sensor Community
+- **`"partial_success"`** : Données envoyées vers une seule destination
+- **`"error"`** : Échec complet
 
 ## 🖥️ Accès aux interfaces
 
@@ -131,10 +255,17 @@ Les données doivent être envoyées au format JSON. Exemple pour un capteur d'h
   - Identifiants par défaut : admin/adminpassword
 - **Grafana** : http://localhost:3000
   - Identifiants par défaut : admin/admin
+- **Sensor Community** : https://sensor.community/
+  - Visualisation publique des données
 
 ## 🔍 Surveillance et maintenance
 
 ### Vérification des logs
+
+Pour voir les logs du backend :
+```bash
+docker-compose logs -f rust-backend
+```
 
 Pour voir les logs d'un service spécifique :
 ```bash
@@ -148,15 +279,6 @@ Où `<service>` peut être `rust-backend`, `influxdb` ou `grafana`.
 Les données sont stockées dans des volumes Docker :
 - `influxdb-data` : Données InfluxDB
 - `grafana-data` : Configuration et tableaux de bord Grafana
-
-## 🤝 Contribution
-
-Les contributions sont les bienvenues ! N'hésitez pas à :
-1. Fork le projet
-2. Créer une branche pour votre fonctionnalité
-3. Commiter vos changements
-4. Pousser vers la branche
-5. Ouvrir une Pull Request
 
 ## 📚 Documentation
 
