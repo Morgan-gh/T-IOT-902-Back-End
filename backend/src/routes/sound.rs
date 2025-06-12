@@ -1,4 +1,4 @@
-use actix_web::{post, get, web, HttpResponse, Responder};
+use actix_web::{post, web, HttpResponse, Responder};
 use actix_multipart::Multipart;
 use futures::{StreamExt, TryStreamExt};
 use influxdb2::Client;
@@ -6,6 +6,7 @@ use chrono::Utc;
 use serde_json::json;
 use serde::{Serialize, Deserialize};
 use crate::influxdb_client::CustomInfluxClient;
+use crate::sensor_client::SensorCommunityClient;
 
 #[derive(Serialize, Deserialize)]
 struct SoundData {
@@ -16,6 +17,7 @@ struct SoundData {
 async fn insert_sound_data(
     _client: web::Data<Client>,
     custom_client: web::Data<CustomInfluxClient>,
+    sensor_community_client: web::Data<SensorCommunityClient>,
     mut payload: Multipart
 ) -> impl Responder {
     // Extraction des données du form-data
@@ -55,37 +57,72 @@ async fn insert_sound_data(
             }
             
             // Logger les données reçues
-            println!("Données de son reçues: niveau={}", level);
+            println!("🔊 Données de son reçues: niveau={} dB", level);
             
-            // Utiliser le client personnalisé pour écrire les données
+            // Variables pour tracker le succès des envois
+            let mut influx_success = false;
+            let mut sensor_community_success = false;
+            
+            // Écriture dans InfluxDB
             match custom_client.write_point(
                 "sound_sensor",
-                &[("sensor_id", "SPH0645")],
+                &[("sensor_id", "INMP441"), ("location", "marseille"), ("sensor_type", "microphone")],
                 &[("sound_level", level as f64)]
             ).await {
                 Ok(_) => {
-                    println!("Données son écrites dans InfluxDB avec succès");
-                    HttpResponse::Ok().json(json!({
-                        "status": "success",
-                        "message": "Données sonores reçues et stockées dans InfluxDB",
-                        "sound_level": level,
-                        "timestamp": Utc::now().to_rfc3339()
-                    }))
+                    println!("✅ Données son écrites dans InfluxDB avec succès");
+                    influx_success = true;
                 },
                 Err(e) => {
-                    println!("Erreur lors de l'écriture dans InfluxDB: {}", e);
-                    HttpResponse::InternalServerError().json(json!({
-                        "status": "error",
-                        "message": format!("Erreur lors du stockage des données: {}", e)
-                    }))
+                    println!("❌ Erreur lors de l'écriture dans InfluxDB: {}", e);
                 }
             }
+            
+            // Envoi vers Sensor Community
+            match sensor_community_client.send_sound_data(level).await {
+                Ok(_) => {
+                    sensor_community_success = true;
+                },
+                Err(e) => {
+                    println!("❌ Erreur lors de l'envoi vers Sensor Community: {}", e);
+                }
+            }
+            
+            // Réponse basée sur le succès des envois
+            let (status, status_message) = match (influx_success, sensor_community_success) {
+                (true, true) => ("success", "Données stockées dans InfluxDB et envoyées à Sensor Community"),
+                (true, false) => ("partial_success", "Données stockées dans InfluxDB uniquement (erreur Sensor Community)"),
+                (false, true) => ("partial_success", "Données envoyées à Sensor Community uniquement (erreur InfluxDB)"),
+                (false, false) => ("error", "Erreur lors du stockage et de l'envoi des données"),
+            };
+            
+            HttpResponse::Ok().json(json!({
+                "status": status,
+                "message": status_message,
+                "data": {
+                    "sound_level": level,
+                    "unit": "dB",
+                    "sensor_type": "INMP441",
+                    "location": "marseille"
+                },
+                "delivery_status": {
+                    "influxdb": influx_success,
+                    "sensor_community": sensor_community_success
+                },
+                "timestamp": Utc::now().to_rfc3339()
+            }))
         },
-        None => HttpResponse::BadRequest().body("Champ 'sound_level' manquant ou invalide")
+        None => {
+            println!("❌ Champ 'sound_level' manquant ou invalide");
+            HttpResponse::BadRequest().json(json!({
+                "status": "error",
+                "message": "Champ 'sound_level' manquant ou invalide",
+                "expected": "sound_level: float (-60.0 à 120.0 dB)"
+            }))
+        }
     }
 }
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(insert_sound_data);
-    cfg.service(get_sound_data);
 }
