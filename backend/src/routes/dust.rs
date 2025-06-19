@@ -1,4 +1,4 @@
-use actix_web::{post, get, web, HttpResponse, Responder};
+use actix_web::{post, web, HttpResponse, Responder};
 use actix_multipart::Multipart;
 use futures::{StreamExt, TryStreamExt};
 use influxdb2::Client;
@@ -94,10 +94,16 @@ async fn insert_dust(
             let mut influx_success = false;
             let mut sensor_community_success = false;
             
+            // Récupérer les valeurs depuis les variables d'environnement
+            let sensor_id = std::env::var("DUST_SENSOR_ID")
+                .expect("DUST_SENSOR_ID non défini");
+            let location = std::env::var("SENSOR_LOCATION")
+                .expect("SENSOR_LOCATION non défini");
+            
             // Écriture dans InfluxDB
             match custom_client.write_point(
                 "dust_sensor",
-                &[("sensor_id", "dust_sensor"), ("location", "marseille"), ("sensor_type", "particulate_matter")],
+                &[("sensor_id", &sensor_id), ("location", &location), ("sensor_type", "particulate_matter")],
                 &[
                     ("dust_concentration", dust_value as f64),
                     ("pm25", pm25_value as f64),
@@ -150,7 +156,7 @@ async fn insert_dust(
                         "estimated": pm10.is_none()
                     },
                     "sensor_type": "particulate_matter",
-                    "location": "marseille"
+                    "location": location
                 },
                 "delivery_status": {
                     "influxdb": influx_success,

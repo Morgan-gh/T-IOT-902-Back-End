@@ -63,10 +63,16 @@ async fn insert_sound_data(
             let mut influx_success = false;
             let mut sensor_community_success = false;
             
+            // Récupérer les valeurs depuis les variables d'environnement
+            let sensor_id = std::env::var("SOUND_SENSOR_ID")
+                .expect("SOUND_SENSOR_ID non défini");
+            let location = std::env::var("SENSOR_LOCATION")
+                .expect("SENSOR_LOCATION non défini");
+            
             // Écriture dans InfluxDB
             match custom_client.write_point(
                 "sound_sensor",
-                &[("sensor_id", "INMP441"), ("location", "marseille"), ("sensor_type", "microphone")],
+                &[("sensor_id", &sensor_id), ("location", &location), ("sensor_type", "microphone")],
                 &[("sound_level", level as f64)]
             ).await {
                 Ok(_) => {
@@ -102,8 +108,8 @@ async fn insert_sound_data(
                 "data": {
                     "sound_level": level,
                     "unit": "dB",
-                    "sensor_type": "INMP441",
-                    "location": "marseille"
+                    "sensor_type": sensor_id,
+                    "location": location
                 },
                 "delivery_status": {
                     "influxdb": influx_success,

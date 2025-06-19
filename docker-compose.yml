@@ -1,4 +1,4 @@
-version: '3.8'
+name: t-iot-902-back-end
 
 services:
   # Backend Rust
@@ -7,16 +7,26 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT}:8080"
     volumes:
       - ./backend:/app
       - /app/target # Exclure le dossier target pour éviter les conflits
     environment:
-      - RUST_LOG=info
-      - INFLUXDB_URL=http://influxdb:8086
-      - INFLUXDB_TOKEN=my-super-secret-token
-      - INFLUXDB_ORG=iot-org
-      - INFLUXDB_BUCKET=iot-data
+      - RUST_LOG=${RUST_LOG}
+      - INFLUXDB_URL=${INFLUXDB_URL}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+      - SENSOR_COMMUNITY_ID=${SENSOR_COMMUNITY_ID}
+      - SENSOR_COMMUNITY_PIN=${SENSOR_COMMUNITY_PIN}
+      - SERVER_HOST=${SERVER_HOST}
+      - SERVER_PORT=${SERVER_PORT}
+      - TEST_SENSOR_COMMUNITY=${TEST_SENSOR_COMMUNITY}
+      - SENSOR_LOCATION=${SENSOR_LOCATION}
+      - DHT_SENSOR_ID=${DHT_SENSOR_ID}
+      - SOUND_SENSOR_ID=${SOUND_SENSOR_ID}
+      - DUST_SENSOR_ID=${DUST_SENSOR_ID}
+      - SENSOR_COMMUNITY_URL=${SENSOR_COMMUNITY_URL}
     depends_on:
       - influxdb
 
@@ -24,30 +34,40 @@ services:
   influxdb:
     image: influxdb:2.7
     ports:
-      - "8086:8086"
+      - "${INFLUXDB_PORT}:8086"
     volumes:
       - influxdb-data:/var/lib/influxdb2
       - ./influxdb/config:/etc/influxdb2
     environment:
       - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
-      - DOCKER_INFLUXDB_INIT_ORG=iot-org
-      - DOCKER_INFLUXDB_INIT_BUCKET=iot-data
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-token
-      - DOCKER_INFLUXDB_INIT_RETENTION=30d
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_ADMIN_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_ADMIN_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_ADMIN_TOKEN}
+      - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION}
 
   # Grafana pour la visualisation
   grafana:
     image: grafana/grafana
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT}:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - grafana-data:/var/lib/grafana
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - INFLUXDB_URL=${INFLUXDB_URL}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+    entrypoint: >
+      sh -c "
+        chmod +x /etc/grafana/provisioning/init-config.sh &&
+        /etc/grafana/provisioning/init-config.sh &&
+        /run.sh
+      "
     depends_on:
       - influxdb
 

@@ -1,4 +1,4 @@
-use actix_web::{post, get, web, HttpResponse, Responder};
+use actix_web::{post, web, HttpResponse, Responder};
 use actix_multipart::Multipart;
 use futures::{StreamExt, TryStreamExt};
 use influxdb2::Client;
@@ -78,10 +78,16 @@ async fn insert_dht_data(
             let mut influx_success = false;
             let mut sensor_community_success = false;
             
+            // Récupérer les valeurs depuis les variables d'environnement
+            let sensor_id = std::env::var("DHT_SENSOR_ID")
+                .expect("DHT_SENSOR_ID non défini");
+            let location = std::env::var("SENSOR_LOCATION")
+                .expect("SENSOR_LOCATION non défini");
+            
             // Écriture dans InfluxDB
             match custom_client.write_point(
                 "dht11_sensor",
-                &[("sensor_id", "DHT11"), ("location", "marseille"), ("sensor_type", "climate")],
+                &[("sensor_id", &sensor_id), ("location", &location), ("sensor_type", "climate")],
                 &[("temperature", temp as f64), ("humidity", hum as f64)]
             ).await {
                 Ok(_) => {
@@ -123,8 +129,8 @@ async fn insert_dht_data(
                         "value": hum,
                         "unit": "%"
                     },
-                    "sensor_type": "DHT11",
-                    "location": "marseille"
+                    "sensor_type": sensor_id,
+                    "location": location
                 },
                 "delivery_status": {
                     "influxdb": influx_success,

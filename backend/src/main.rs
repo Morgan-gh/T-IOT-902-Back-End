@@ -15,44 +15,35 @@ async fn main() -> std::io::Result<()> {
     
     // Configuration InfluxDB
     let influxdb_url = std::env::var("INFLUXDB_URL")
-        .unwrap_or_else(|_| {
-            println!("⚠️  INFLUXDB_URL non défini, utilisation de la valeur par défaut");
-            "http://localhost:8086".to_string()
-        });
+        .unwrap_or_else(|_| std::env::var("INFLUXDB_URL_DEFAULT").expect("INFLUXDB_URL_DEFAULT non défini"));
 
     let influxdb_token = std::env::var("INFLUXDB_TOKEN")
         .expect("❌ INFLUXDB_TOKEN doit être défini dans le fichier .env");
     
     let influxdb_org = std::env::var("INFLUXDB_ORG")
-        .unwrap_or_else(|_| {
-            println!("⚠️  INFLUXDB_ORG non défini, utilisation de la valeur par défaut");
-            "iot-org".to_string()
-        });
+        .unwrap_or_else(|_| std::env::var("INFLUXDB_ORG_DEFAULT").expect("INFLUXDB_ORG_DEFAULT non défini"));
         
     let influxdb_bucket = std::env::var("INFLUXDB_BUCKET")
-        .unwrap_or_else(|_| {
-            println!("⚠️  INFLUXDB_BUCKET non défini, utilisation de la valeur par défaut");
-            "iot-data".to_string()
-        });
+        .unwrap_or_else(|_| std::env::var("INFLUXDB_BUCKET_DEFAULT").expect("INFLUXDB_BUCKET_DEFAULT non défini"));
 
-    // Configuration Sensor Community - Un seul device pour tous les capteurs LoRa
+    // Configuration Sensor Community
     let sensor_id = std::env::var("SENSOR_COMMUNITY_ID")
         .expect("❌ SENSOR_COMMUNITY_ID doit être défini dans le fichier .env");
     
     let sensor_pin = std::env::var("SENSOR_COMMUNITY_PIN")
         .expect("❌ SENSOR_COMMUNITY_PIN doit être défini dans le fichier .env");
 
-    // Créer le client Sensor Community (un seul device multi-capteurs)
+    // Créer le client Sensor Community
     let sensor_community_client = SensorCommunityClient::new_single(sensor_id.clone(), sensor_pin.clone());
 
     // Configuration serveur
     let server_host = std::env::var("SERVER_HOST")
-        .unwrap_or_else(|_| "0.0.0.0".to_string());
+        .unwrap_or_else(|_| std::env::var("SERVER_HOST_DEFAULT").expect("SERVER_HOST_DEFAULT non défini"));
     
     let server_port = std::env::var("SERVER_PORT")
-        .unwrap_or_else(|_| "8080".to_string());
+        .unwrap_or_else(|_| std::env::var("SERVER_PORT_DEFAULT").expect("SERVER_PORT_DEFAULT non défini"));
 
-    // Créer le client InfluxDB officiel (à garder pour compatibilité)
+    // Créer le client InfluxDB officiel
     let client = Client::new(influxdb_url.clone(), influxdb_token.clone(), influxdb_org.clone());
     
     // Créer notre client InfluxDB personnalisé
@@ -67,9 +58,10 @@ async fn main() -> std::io::Result<()> {
     let sensor_community_client_data = web::Data::new(sensor_community_client);
     
     // Configurer le niveau de log
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info");
-    }
+    let rust_log = std::env::var("RUST_LOG")
+        .unwrap_or_else(|_| std::env::var("RUST_LOG_DEFAULT").expect("RUST_LOG_DEFAULT non défini"));
+    
+    std::env::set_var("RUST_LOG", &rust_log);
     env_logger::init();
 
     // Logs de démarrage
@@ -83,9 +75,11 @@ async fn main() -> std::io::Result<()> {
     log::info!("🔐 Sensor Community PIN: {}...", sensor_pin.chars().take(3).collect::<String>());
 
     // Test optionnel de la connexion à Sensor Community au démarrage
-    if std::env::var("TEST_SENSOR_COMMUNITY").unwrap_or_else(|_| "false".to_string()) == "true" {
+    let test_sensor_community = std::env::var("TEST_SENSOR_COMMUNITY")
+        .unwrap_or_else(|_| std::env::var("TEST_SENSOR_COMMUNITY_DEFAULT").expect("TEST_SENSOR_COMMUNITY_DEFAULT non défini"));
+    
+    if test_sensor_community == "true" {
         log::info!("🧪 Test de connexion à Sensor Community...");
-        // Test avec des données factices pour vérifier la connectivité
         match sensor_community_client_data.send_climate_data(20.0, 50.0).await {
             Ok(_) => log::info!("✅ Connexion à Sensor Community OK"),
             Err(e) => log::warn!("⚠️  Test Sensor Community échoué: {}", e),

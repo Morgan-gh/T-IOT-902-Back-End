@@ -1,6 +1,7 @@
 use reqwest::Client as HttpClient;
-use serde::{Serialize, Deserialize};
+use serde::Serialize;
 use std::error::Error;
+use dotenv::dotenv;
 
 // Structure pour l'envoi vers Sensor Community
 #[derive(Serialize)]
@@ -26,11 +27,19 @@ pub struct SensorCommunityClient {
 
 impl SensorCommunityClient {
     pub fn new_single(sensor_id: String, sensor_pin: String) -> Self {
+        let base_url = std::env::var("SENSOR_COMMUNITY_URL")
+            .expect("❌ SENSOR_COMMUNITY_URL doit être défini dans le fichier .env");
+        
+        println!("🔧 Initialisation Sensor Community Client:");
+        println!("   Sensor ID: {}", sensor_id);
+        println!("   Sensor PIN: {}", sensor_pin);
+        println!("   Base URL: {}", base_url);
+        
         Self {
             http_client: HttpClient::new(),
             sensor_id,
             sensor_pin,
-            base_url: "https://api.sensor.community/v1/push-sensor-data/".to_string(),
+            base_url,
         }
     }
     
@@ -98,6 +107,7 @@ impl SensorCommunityClient {
     /// Méthode générique pour envoyer des données à Sensor Community
     async fn send_data(&self, data: SensorCommunityData) -> Result<(), Box<dyn Error>> {
         println!("Envoi vers Sensor Community - Sensor ID: {}", self.sensor_id);
+        println!("URL: {}", self.base_url);
         
         let response = self.http_client
             .post(&self.base_url)
