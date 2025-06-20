@@ -2,14 +2,17 @@
 
 # Script de génération de données de test pour SenSorSensei
 # Envoie des données toutes les secondes pour simuler des capteurs IoT
+# NOUVELLE ARCHITECTURE: Collecte groupée pour Sensor Community
 
 BASE_URL="http://localhost:8080"
 INTERVAL=1  # Intervalle en secondes
+SENSOR_COMMUNITY_INTERVAL=10  # Envoi groupé vers Sensor Community toutes les 10 secondes
 
 echo "🚀 Générateur de données de test SenSorSensei"
 echo "=============================================="
 echo "URL de base: $BASE_URL"
 echo "Intervalle: ${INTERVAL} seconde(s)"
+echo "Envoi Sensor Community: toutes les ${SENSOR_COMMUNITY_INTERVAL} secondes"
 echo "Appuyez sur Ctrl+C pour arrêter"
 echo ""
 
@@ -36,7 +39,9 @@ send_sound_data() {
     
     if [ $? -eq 0 ]; then
         status=$(echo $response | grep -o '"status":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "unknown")
-        echo "   Status: $status"
+        influx_status=$(echo $response | grep -o '"influxdb_storage":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "unknown")
+        sensor_collection=$(echo $response | grep -o '"sensor_community_collection":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "unknown")
+        echo "   Status: $status | InfluxDB: $influx_status | Collecte SC: $sensor_collection"
     else
         echo "   Erreur: Impossible de contacter l'API"
     fi
@@ -55,7 +60,9 @@ send_humidity_data() {
     
     if [ $? -eq 0 ]; then
         status=$(echo $response | grep -o '"status":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "unknown")
-        echo "   Status: $status"
+        influx_status=$(echo $response | grep -o '"influxdb_storage":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "unknown")
+        sensor_collection=$(echo $response | grep -o '"sensor_community_collection":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "unknown")
+        echo "   Status: $status | InfluxDB: $influx_status | Collecte SC: $sensor_collection"
     else
         echo "   Erreur: Impossible de contacter l'API"
     fi
@@ -76,7 +83,9 @@ send_dust_data() {
     
     if [ $? -eq 0 ]; then
         status=$(echo $response | grep -o '"status":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "unknown")
-        echo "   Status: $status"
+        influx_status=$(echo $response | grep -o '"influxdb_storage":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "unknown")
+        sensor_collection=$(echo $response | grep -o '"sensor_community_collection":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "unknown")
+        echo "   Status: $status | InfluxDB: $influx_status | Collecte SC: $sensor_collection"
     else
         echo "   Erreur: Impossible de contacter l'API"
     fi
@@ -93,20 +102,70 @@ send_dust_data_estimated() {
     
     if [ $? -eq 0 ]; then
         status=$(echo $response | grep -o '"status":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "unknown")
-        echo "   Status: $status"
+        influx_status=$(echo $response | grep -o '"influxdb_storage":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "unknown")
+        sensor_collection=$(echo $response | grep -o '"sensor_community_collection":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "unknown")
+        echo "   Status: $status | InfluxDB: $influx_status | Collecte SC: $sensor_collection"
     else
         echo "   Erreur: Impossible de contacter l'API"
     fi
 }
 
+# Fonction pour vérifier le statut des données collectées
+check_sensor_community_status() {
+    echo "📊 Vérification du statut des dernières valeurs..."
+    
+    response=$(curl -s -X POST $BASE_URL/sensor-community/status 2>/dev/null)
+    
+    if [ $? -eq 0 ]; then
+        has_data=$(echo $response | grep -o '"has_data":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "false")
+        echo "   Données disponibles: $has_data"
+    else
+        echo "   Erreur: Impossible de vérifier le statut"
+    fi
+}
+
+# Fonction pour envoyer toutes les données collectées vers Sensor Community
+send_to_sensor_community() {
+    echo "🚀 Envoi des dernières valeurs vers Sensor Community..."
+    
+    response=$(curl -s -X POST $BASE_URL/sensor-community/send 2>/dev/null)
+    
+    if [ $? -eq 0 ]; then
+        status=$(echo $response | grep -o '"status":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "unknown")
+        data_sent=$(echo $response | grep -o '"data_sent":[^,]*' | grep -o 'true\|false' 2>/dev/null || echo "unknown")
+        message=$(echo $response | grep -o '"message":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "unknown")
+        echo "   Status: $status | Données envoyées: $data_sent"
+        echo "   Message: $message"
+    else
+        echo "   Erreur: Impossible d'envoyer vers Sensor Community"
+    fi
+}
+
+# Fonction pour vider les données collectées
+clear_collected_data() {
+    echo "🗑️  Vidage des données collectées..."
+    
+    response=$(curl -s -X POST $BASE_URL/sensor-community/clear 2>/dev/null)
+    
+    if [ $? -eq 0 ]; then
+        status=$(echo $response | grep -o '"status":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "unknown")
+        sessions_cleared=$(echo $response | grep -o '"sessions_cleared":[0-9]*' | cut -d':' -f2 2>/dev/null || echo "0")
+        echo "   Status: $status | Sessions vidées: $sessions_cleared"
+    else
+        echo "   Erreur: Impossible de vider les données"
+    fi
+}
+
 # Compteur pour alterner entre les types de capteurs
 counter=0
+sensor_community_counter=0
 
 echo "📊 Démarrage de la génération de données..."
 echo ""
 
 while true; do
     counter=$((counter + 1))
+    sensor_community_counter=$((sensor_community_counter + 1))
     timestamp=$(date '+%H:%M:%S')
     
     echo "[$timestamp] Cycle #$counter"
@@ -126,6 +185,19 @@ while true; do
             send_dust_data_estimated
             ;;
     esac
+    
+    # Vérifier le statut des données collectées
+    check_sensor_community_status
+    
+    # Envoyer vers Sensor Community selon l'intervalle configuré
+    if [ $sensor_community_counter -ge $SENSOR_COMMUNITY_INTERVAL ]; then
+        echo ""
+        echo "🔄 === ENVOI AUTOMATIQUE DES DERNIÈRES VALEURS ==="
+        send_to_sensor_community
+        echo "=== FIN ENVOI AUTOMATIQUE ==="
+        echo ""
+        sensor_community_counter=0
+    fi
     
     echo ""
     

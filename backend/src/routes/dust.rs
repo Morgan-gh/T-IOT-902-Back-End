@@ -90,9 +90,9 @@ async fn insert_dust(
             println!("💨 Données de poussière reçues: concentration={}µg/m³, PM2.5={}µg/m³, PM10={}µg/m³", 
                     dust_value, pm25_value, pm10_value);
             
-            // Variables pour tracker le succès des envois
+            // Variables pour tracker le succès des opérations
             let mut influx_success = false;
-            let mut sensor_community_success = false;
+            let mut sensor_community_collection_success = false;
             
             // Récupérer les valeurs depuis les variables d'environnement
             let sensor_id = std::env::var("DUST_SENSOR_ID")
@@ -100,7 +100,7 @@ async fn insert_dust(
             let location = std::env::var("SENSOR_LOCATION")
                 .expect("SENSOR_LOCATION non défini");
             
-            // Écriture dans InfluxDB
+            // Écriture dans InfluxDB (toujours immédiate)
             match custom_client.write_point(
                 "dust_sensor",
                 &[("sensor_id", &sensor_id), ("location", &location), ("sensor_type", "particulate_matter")],
@@ -119,22 +119,23 @@ async fn insert_dust(
                 }
             }
             
-            // Envoi vers Sensor Community (utilise PM2.5 et PM10)
-            match sensor_community_client.send_air_quality_data(pm25_value, pm10_value).await {
+            // Collecte pour Sensor Community (pas d'envoi immédiat)
+            match sensor_community_client.collect_dust_data(dust_value).await {
                 Ok(_) => {
-                    sensor_community_success = true;
+                    println!("📊 Données poussière collectées pour envoi groupé vers Sensor Community");
+                    sensor_community_collection_success = true;
                 },
                 Err(e) => {
-                    println!("❌ Erreur lors de l'envoi vers Sensor Community: {}", e);
+                    println!("❌ Erreur lors de la collecte pour Sensor Community: {}", e);
                 }
             }
             
-            // Réponse basée sur le succès des envois
-            let (status, status_message) = match (influx_success, sensor_community_success) {
-                (true, true) => ("success", "Données stockées dans InfluxDB et envoyées à Sensor Community"),
-                (true, false) => ("partial_success", "Données stockées dans InfluxDB uniquement (erreur Sensor Community)"),
-                (false, true) => ("partial_success", "Données envoyées à Sensor Community uniquement (erreur InfluxDB)"),
-                (false, false) => ("error", "Erreur lors du stockage et de l'envoi des données"),
+            // Réponse basée sur le succès des opérations
+            let (status, status_message) = match (influx_success, sensor_community_collection_success) {
+                (true, true) => ("success", "Données stockées dans InfluxDB et collectées pour Sensor Community"),
+                (true, false) => ("partial_success", "Données stockées dans InfluxDB uniquement (erreur collecte Sensor Community)"),
+                (false, true) => ("partial_success", "Données collectées pour Sensor Community uniquement (erreur InfluxDB)"),
+                (false, false) => ("error", "Erreur lors du stockage et de la collecte des données"),
             };
             
             HttpResponse::Ok().json(json!({
@@ -158,9 +159,14 @@ async fn insert_dust(
                     "sensor_type": "particulate_matter",
                     "location": location
                 },
-                "delivery_status": {
-                    "influxdb": influx_success,
-                    "sensor_community": sensor_community_success
+                "operations_status": {
+                    "influxdb_storage": influx_success,
+                    "sensor_community_collection": sensor_community_collection_success
+                },
+                "sensor_community_info": {
+                    "data_collected": sensor_community_collection_success,
+                    "send_endpoint": "/sensor-community/send",
+                    "status_endpoint": "/sensor-community/status"
                 },
                 "air_quality_index": {
                     "pm25_category": get_pm25_category(pm25_value),

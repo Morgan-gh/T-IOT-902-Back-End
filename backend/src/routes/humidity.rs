@@ -74,9 +74,9 @@ async fn insert_dht_data(
             // Logger les données reçues
             println!("🌡️ Données DHT11 reçues: température={}°C, humidité={}%", temp, hum);
             
-            // Variables pour tracker le succès des envois
+            // Variables pour tracker le succès des opérations
             let mut influx_success = false;
-            let mut sensor_community_success = false;
+            let mut sensor_community_collection_success = false;
             
             // Récupérer les valeurs depuis les variables d'environnement
             let sensor_id = std::env::var("DHT_SENSOR_ID")
@@ -84,7 +84,7 @@ async fn insert_dht_data(
             let location = std::env::var("SENSOR_LOCATION")
                 .expect("SENSOR_LOCATION non défini");
             
-            // Écriture dans InfluxDB
+            // Écriture dans InfluxDB (toujours immédiate)
             match custom_client.write_point(
                 "dht11_sensor",
                 &[("sensor_id", &sensor_id), ("location", &location), ("sensor_type", "climate")],
@@ -99,22 +99,23 @@ async fn insert_dht_data(
                 }
             }
             
-            // Envoi vers Sensor Community
-            match sensor_community_client.send_climate_data(temp, hum).await {
+            // Collecte pour Sensor Community (pas d'envoi immédiat)
+            match sensor_community_client.collect_climate_data(temp, hum).await {
                 Ok(_) => {
-                    sensor_community_success = true;
+                    println!("📊 Données climatiques collectées pour envoi groupé vers Sensor Community");
+                    sensor_community_collection_success = true;
                 },
                 Err(e) => {
-                    println!("❌ Erreur lors de l'envoi vers Sensor Community: {}", e);
+                    println!("❌ Erreur lors de la collecte pour Sensor Community: {}", e);
                 }
             }
             
-            // Réponse basée sur le succès des envois
-            let (status, status_message) = match (influx_success, sensor_community_success) {
-                (true, true) => ("success", "Données stockées dans InfluxDB et envoyées à Sensor Community"),
-                (true, false) => ("partial_success", "Données stockées dans InfluxDB uniquement (erreur Sensor Community)"),
-                (false, true) => ("partial_success", "Données envoyées à Sensor Community uniquement (erreur InfluxDB)"),
-                (false, false) => ("error", "Erreur lors du stockage et de l'envoi des données"),
+            // Réponse basée sur le succès des opérations
+            let (status, status_message) = match (influx_success, sensor_community_collection_success) {
+                (true, true) => ("success", "Données stockées dans InfluxDB et collectées pour Sensor Community"),
+                (true, false) => ("partial_success", "Données stockées dans InfluxDB uniquement (erreur collecte Sensor Community)"),
+                (false, true) => ("partial_success", "Données collectées pour Sensor Community uniquement (erreur InfluxDB)"),
+                (false, false) => ("error", "Erreur lors du stockage et de la collecte des données"),
             };
             
             HttpResponse::Ok().json(json!({
@@ -132,9 +133,14 @@ async fn insert_dht_data(
                     "sensor_type": sensor_id,
                     "location": location
                 },
-                "delivery_status": {
-                    "influxdb": influx_success,
-                    "sensor_community": sensor_community_success
+                "operations_status": {
+                    "influxdb_storage": influx_success,
+                    "sensor_community_collection": sensor_community_collection_success
+                },
+                "sensor_community_info": {
+                    "data_collected": sensor_community_collection_success,
+                    "send_endpoint": "/sensor-community/send",
+                    "status_endpoint": "/sensor-community/status"
                 },
                 "timestamp": Utc::now().to_rfc3339()
             }))

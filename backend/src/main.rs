@@ -73,18 +73,18 @@ async fn main() -> std::io::Result<()> {
     log::info!("📊 InfluxDB Bucket: {}", influxdb_bucket);
     log::info!("📡 LoRa Device - Sensor Community ID: {}", sensor_id);
     log::info!("🔐 Sensor Community PIN: {}...", sensor_pin.chars().take(3).collect::<String>());
-
-    // Test optionnel de la connexion à Sensor Community au démarrage
-    let test_sensor_community = std::env::var("TEST_SENSOR_COMMUNITY")
-        .unwrap_or_else(|_| std::env::var("TEST_SENSOR_COMMUNITY_DEFAULT").expect("TEST_SENSOR_COMMUNITY_DEFAULT non défini"));
     
-    if test_sensor_community == "true" {
-        log::info!("🧪 Test de connexion à Sensor Community...");
-        match sensor_community_client_data.send_climate_data(20.0, 50.0).await {
-            Ok(_) => log::info!("✅ Connexion à Sensor Community OK"),
-            Err(e) => log::warn!("⚠️  Test Sensor Community échoué: {}", e),
-        }
-    }
+    // Logs de la nouvelle architecture
+    log::info!("🔄 Nouvelle architecture activée:");
+    log::info!("   📊 InfluxDB: Envoi immédiat pour chaque capteur");
+    log::info!("   📡 Sensor Community: Collecte groupée, envoi via /sensor-community/send");
+    log::info!("   🔗 Endpoints disponibles:");
+    log::info!("      - POST /sound - Collecte données sonores");
+    log::info!("      - POST /humidity - Collecte données climatiques");
+    log::info!("      - POST /dust - Collecte données qualité air");
+    log::info!("      - POST /sensor-community/send - Envoi groupé vers Sensor Community");
+    log::info!("      - POST /sensor-community/status - Statut des données collectées");
+    log::info!("      - POST /sensor-community/clear - Vidage des données collectées");
 
     // Construire l'adresse de bind
     let bind_address = format!("{}:{}", server_host, server_port);
