@@ -92,7 +92,7 @@ async fn insert_dust(
             
             // Variables pour tracker le succès des opérations
             let mut influx_success = false;
-            let mut sensor_community_collection_success = false;
+            let mut sensor_community_send_success = false;
             
             // Récupérer les valeurs depuis les variables d'environnement
             let sensor_id = std::env::var("DUST_SENSOR_ID")
@@ -119,23 +119,23 @@ async fn insert_dust(
                 }
             }
             
-            // Collecte pour Sensor Community (pas d'envoi immédiat)
-            match sensor_community_client.collect_dust_data(dust_value).await {
+            // Envoi direct vers Sensor Community
+            match sensor_community_client.send_air_quality_data(pm25_value, pm10_value).await {
                 Ok(_) => {
-                    println!("📊 Données poussière collectées pour envoi groupé vers Sensor Community");
-                    sensor_community_collection_success = true;
+                    println!("✅ Données qualité air envoyées vers Sensor Community avec succès");
+                    sensor_community_send_success = true;
                 },
                 Err(e) => {
-                    println!("❌ Erreur lors de la collecte pour Sensor Community: {}", e);
+                    println!("❌ Erreur lors de l'envoi vers Sensor Community: {}", e);
                 }
             }
             
             // Réponse basée sur le succès des opérations
-            let (status, status_message) = match (influx_success, sensor_community_collection_success) {
-                (true, true) => ("success", "Données stockées dans InfluxDB et collectées pour Sensor Community"),
-                (true, false) => ("partial_success", "Données stockées dans InfluxDB uniquement (erreur collecte Sensor Community)"),
-                (false, true) => ("partial_success", "Données collectées pour Sensor Community uniquement (erreur InfluxDB)"),
-                (false, false) => ("error", "Erreur lors du stockage et de la collecte des données"),
+            let (status, status_message) = match (influx_success, sensor_community_send_success) {
+                (true, true) => ("success", "Données stockées dans InfluxDB et envoyées vers Sensor Community"),
+                (true, false) => ("partial_success", "Données stockées dans InfluxDB uniquement (erreur envoi Sensor Community)"),
+                (false, true) => ("partial_success", "Données envoyées vers Sensor Community uniquement (erreur InfluxDB)"),
+                (false, false) => ("error", "Erreur lors du stockage et de l'envoi des données"),
             };
             
             HttpResponse::Ok().json(json!({
@@ -161,11 +161,11 @@ async fn insert_dust(
                 },
                 "operations_status": {
                     "influxdb_storage": influx_success,
-                    "sensor_community_collection": sensor_community_collection_success
+                    "sensor_community_send": sensor_community_send_success
                 },
                 "sensor_community_info": {
-                    "data_collected": sensor_community_collection_success,
-                    "send_endpoint": "/sensor-community/send",
+                    "data_sent": sensor_community_send_success,
+                    "send_type": "direct",
                     "status_endpoint": "/sensor-community/status"
                 },
                 "air_quality_index": {
